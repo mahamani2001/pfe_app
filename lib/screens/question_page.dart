@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ionicons/ionicons.dart';
-import './models/question_model.dart';
+import '../models/question_model.dart';
+import '../services/api_service.dart'; // 📌 Importer le service API
+import 'result_page.dart'; // 📌 Importer la page des résultats
 
 class QuestionPage extends StatefulWidget {
   const QuestionPage({Key? key, required this.title}) : super(key: key);
@@ -22,31 +24,54 @@ class _QuestionPageState extends State<QuestionPage> {
     super.dispose();
   }
 
+  // 📌 Envoyer les résultats via ApiService
+  void submitQuiz() async {
+    List<String> answers = questions.map((q) => q.userAnswered).toList();
+    String openAnswer = _textController.text;
+
+    try {
+      var result = await ApiService.sendQuizResults(answers, openAnswer);
+      // Afficher les résultats
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 600),
+          pageBuilder: (context, animation, secondaryAnimation) => ResultPage(
+            category: result["category"],
+            score: result["score"],
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      print("❌ Erreur API : $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFF3EDE0), // Fond beige doux
+      backgroundColor: Color(0xFFF3EDE0),
       appBar: AppBar(
         title: Text(
           widget.title,
           style: TextStyle(
-            color: Color(0xFF17130D), // Texte noir/brun foncé
+            color: Color(0xFF17130D),
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
         ),
-        elevation: 4, // Ombre plus marquée
-        backgroundColor: Color(0xFFA7C796), // Couleur principale (Coral)
-        shadowColor: Colors.black26,
+        backgroundColor: Color(0xFFA7C796),
         centerTitle: true,
-        iconTheme: IconThemeData(
-          color: Colors.white, // Icônes blanches pour meilleur contraste
-        ),
         actions: [
           IconButton(
             onPressed: () {},
             icon: Icon(Ionicons.help_outline),
-            splashRadius: 24,
             color: Colors.white,
           )
         ],
@@ -58,10 +83,7 @@ class _QuestionPageState extends State<QuestionPage> {
           children: [
             Text(
               "Question ${currentQuestion + 1}/${questions.length}",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 25),
             Expanded(
@@ -94,7 +116,7 @@ class _QuestionPageState extends State<QuestionPage> {
                             controller: _textController,
                             decoration: InputDecoration(
                               border: OutlineInputBorder(),
-                              hintText: "Votre hiiisf ici...",
+                              hintText: "Votre réponse ici...",
                               fillColor: Colors.white,
                               filled: true,
                             ),
@@ -106,24 +128,19 @@ class _QuestionPageState extends State<QuestionPage> {
                           ),
                         )
                       else
-                        ...List.generate(4, (optionIndex) {
-                          final option = question.options[optionIndex];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 15),
-                            child: Card(
-                              color: Colors.white,
+                        Column(
+                          children: List.generate(question.options.length,
+                              (optionIndex) {
+                            final option = question.options[optionIndex];
+                            return Card(
                               elevation: 3,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10)),
                               child: RadioListTile(
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                                contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
                                 value: option,
                                 groupValue: question.userAnswered,
                                 selected: question.userAnswered == option,
-                                activeColor: (Color(0xFFFF7F50)),
+                                activeColor: Color(0xFFFF7F50),
                                 title: Text(
                                   option,
                                   style: TextStyle(
@@ -137,9 +154,9 @@ class _QuestionPageState extends State<QuestionPage> {
                                   });
                                 },
                               ),
-                            ),
-                          );
-                        })
+                            );
+                          }),
+                        ),
                     ],
                   );
                 },
@@ -158,7 +175,7 @@ class _QuestionPageState extends State<QuestionPage> {
                           curve: Curves.easeInOut);
                     });
                   } else {
-                    // Action à exécuter à la fin du quiz
+                    submitQuiz();
                   }
                 },
                 style: ElevatedButton.styleFrom(

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'question_page.dart';
+import 'screens/question_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Test Question Page',
-      home: QuestionPage(title: 'hi'),
+      home: QuestionPage(title: 'test'),
     );
   }
 }

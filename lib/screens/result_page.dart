@@ -21,7 +21,7 @@ class ResultPage extends StatelessWidget {
             ),
             SizedBox(height: 20),
             Text(
-              category,
+              category.isNotEmpty ? category : "Non défini",
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
