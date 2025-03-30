@@ -2,83 +2,86 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ApiService {
-  static const String flaskApiUrl =
-      "http://10.0.2.2:5000/predict"; 
+  static const String baseUrl =
+      "http://10.0.2.2:3000/api/quiz"; // 🔹 API locale
 
-  // 📌 Fonction pour envoyer les réponses du quiz
+  /// 📌 **Envoyer les réponses et récupérer la prédiction**
   static Future<Map<String, dynamic>> sendQuizResults(
-      List<String> answers, String openAnswer) async {
+      List<String> answers, String patientId) async {
     try {
-      // 📌 Convertir les réponses en valeurs numériques
       List<int> numericAnswers = answers.map((answer) {
-        if (["Jamais", "Parfois", "Souvent", "Toujours"].contains(answer)) {
-          switch (answer) {
-            case "Jamais":
-              return 0;
-            case "Parfois":
-              return 1;
-            case "Souvent":
-              return 2;
-            case "Toujours":
-              return 3;
-            default:
-              return 0;
-          }
-        } else if (["Pas du tout", "Légèrement", "Moyennement", "Beaucoup"]
-            .contains(answer)) {
-          switch (answer) {
-            case "Pas du tout":
-              return 0;
-            case "Légèrement":
-              return 1;
-            case "Moyennement":
-              return 2;
-            case "Beaucoup":
-              return 3;
-            default:
-              return 0;
-          }
+        switch (answer) {
+          case "Jamais":
+          case "Pas du tout":
+            return 0;
+          case "Parfois":
+          case "Légèrement":
+            return 1;
+          case "Souvent":
+          case "Moyennement":
+            return 2;
+          case "Toujours":
+          case "Beaucoup":
+            return 3;
+          default:
+            return 0;
         }
-        return 0;
       }).toList();
 
-      // 📌 Vérifier et s'assurer que `answers` a EXACTEMENT 14 éléments
-      if (numericAnswers.length > 14) {
-        numericAnswers =
-            numericAnswers.sublist(0, 14); // Prendre les 14 premières réponses
-      }
-      if (numericAnswers.length < 14) {
-        while (numericAnswers.length < 14) {
-          numericAnswers.add(0); // Compléter avec 0 si manque de valeurs
-        }
-      }
-
-      // 📌 Construire la requête JSON
       Map<String, dynamic> requestBody = {
+        "patient_id": patientId,
         "answers": numericAnswers,
-        "openAnswer": openAnswer,
       };
 
       print("📤 Envoi des réponses : $requestBody");
 
       var response = await http.post(
-        Uri.parse(flaskApiUrl),
+        Uri.parse("$baseUrl/predict"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(requestBody),
       );
 
-      print("📥 Réponse du backend : ${response.body}");
+      print("📥 Réponse API : ${response.body}");
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
+        if (!data.containsKey("result")) {
+          throw Exception("❌ Réponse invalide !");
+        }
+
         return {
-          "category": data["category"] ?? "Unknown",
-          "score": data["score"] ?? 0.0
+          "niveau_anxiete": data["result"]["niveau_anxiete"] ?? "Inconnu",
+          "score": (data["result"]["score_anxiete"] ?? 0).toDouble(),
         };
       } else {
-        throw Exception("Erreur serveur");
+        throw Exception("Erreur serveur : ${response.statusCode}");
       }
     } catch (e) {
+      print("❌ Erreur connexion : $e");
+      throw Exception("Erreur connexion: $e");
+    }
+  }
+
+  /// 📌 **Récupérer l'historique des tests**
+  static Future<List<Map<String, dynamic>>> fetchHistory(
+      String patientId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/history/$patientId"),
+        headers: {"Content-Type": "application/json"},
+      );
+
+      print("📥 Réponse API historique : ${response.body}");
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        throw Exception(
+            "Erreur chargement historique : ${response.statusCode}");
+      }
+    } catch (e) {
+      print("❌ Erreur connexion : $e");
       throw Exception("Erreur connexion: $e");
     }
   }
