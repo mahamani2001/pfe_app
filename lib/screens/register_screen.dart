@@ -1,10 +1,8 @@
-import 'package:flutter/material.dart';
+/* import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
-
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
@@ -14,7 +12,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _errorMessage;
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -25,66 +22,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.register(
+      await Provider.of<AuthProvider>(context, listen: false).register(
         _fullNameController.text,
         _emailController.text,
         _passwordController.text,
       );
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+      Navigator.pushNamed(context, '/users');
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = e.toString();
       });
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Inscription')),
+      appBar: AppBar(title: Text('Register')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
               controller: _fullNameController,
-              decoration: const InputDecoration(labelText: 'Nom complet'),
+              decoration: InputDecoration(labelText: 'Full Name'),
             ),
             TextField(
               controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: InputDecoration(labelText: 'Email'),
             ),
             TextField(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Mot de passe'),
+              decoration: InputDecoration(labelText: 'Password'),
               obscureText: true,
             ),
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(_errorMessage!,
-                    style: const TextStyle(color: Colors.red)),
+                child: Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Colors.red),
+                ),
               ),
-            const SizedBox(height: 20),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _register,
-                    child: const Text('S’inscrire'),
-                  ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _register,
+              child: Text('Register'),
+            ),
             TextButton(
               onPressed: () => Navigator.pushNamed(context, '/login'),
-              child: const Text('Déjà un compte ? Se connecter'),
+              child: Text('Already have an account? Login'),
             ),
           ],
         ),
@@ -92,3 +80,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+ */

@@ -2,17 +2,15 @@ class User {
   final int id;
   final String fullName;
   final String email;
-  final String? role;
-  final String? dateOfBirth;
-  final String? gender;
+  final String role;
+  final String publicKey;
 
   User({
     required this.id,
     required this.fullName,
     required this.email,
-    this.role,
-    this.dateOfBirth,
-    this.gender,
+    required this.role,
+    required this.publicKey,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -21,8 +19,7 @@ class User {
       fullName: json['full_name'],
       email: json['email'],
       role: json['role'],
-      dateOfBirth: json['date_of_birth'],
-      gender: json['gender'],
+      publicKey: json['public_key'] ?? '',
     );
   }
 }

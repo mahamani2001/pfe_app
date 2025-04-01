@@ -4,9 +4,8 @@ import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 
 class ChatScreen extends StatefulWidget {
-  final int receiverId;
-
-  const ChatScreen({super.key, required this.receiverId});
+  final String receiverId; // ✅ ID du psychiatre sélectionné
+  const ChatScreen({Key? key, required this.receiverId}) : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -18,59 +17,64 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-
-    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    chatProvider.loadMessages(widget.receiverId);
-    chatProvider.listenToMessages(authProvider.user!.id);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+
+    // ✅ Initialiser le chat avec l'ID de l'utilisateur connecté
+    if (authProvider.user != null) {
+      chatProvider.initChat(authProvider.user!.id.toString());
+    }
   }
 
-  @override
-  void dispose() {
-    _messageController.dispose();
-    Provider.of<ChatProvider>(context, listen: false).disposeService();
-    super.dispose();
+  // ✅ Envoyer un message au psychiatre
+  void _sendMessage(BuildContext context) {
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    if (_messageController.text.isNotEmpty) {
+      chatProvider.sendMessage(
+          int.parse(widget.receiverId), _messageController.text);
+      _messageController.clear();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
     final chatProvider = Provider.of<ChatProvider>(context);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
+      appBar: AppBar(title: const Text('Chat sécurisé')),
       body: Column(
         children: [
+          // ✅ Afficher les messages envoyés et reçus
           Expanded(
-            child: chatProvider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: chatProvider.messages.length,
-                    itemBuilder: (context, index) {
-                      final message = chatProvider.messages[index];
-                      final isMe = message.senderId == authProvider.user!.id;
-                      return ListTile(
-                        title: Align(
-                          alignment: isMe
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.all(8.0),
-                            decoration: BoxDecoration(
-                              color: isMe ? Colors.blue[100] : Colors.grey[300],
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                            child: Text(message.content),
-                          ),
-                        ),
-                        subtitle: Text(
-                          message.timestamp.toString(),
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      );
-                    },
+            child: ListView.builder(
+              itemCount: chatProvider.messages.length,
+              itemBuilder: (context, index) {
+                final message = chatProvider.messages[index];
+                final isMe = message.senderId.toString() ==
+                    Provider.of<AuthProvider>(context, listen: false)
+                        .user
+                        ?.id
+                        .toString();
+                return Align(
+                  alignment:
+                      isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    margin:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.blue[100] : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      message.content,
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ),
+                );
+              },
+            ),
           ),
+          // ✅ Zone de saisie pour envoyer un message
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -78,18 +82,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    decoration:
-                        const InputDecoration(hintText: 'Écrire un message...'),
+                    decoration: const InputDecoration(hintText: 'Message...'),
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.send),
-                  onPressed: () async {
-                    if (_messageController.text.isEmpty) return;
-                    await chatProvider.sendMessage(
-                        widget.receiverId, _messageController.text);
-                    _messageController.clear();
-                  },
+                  onPressed: () => _sendMessage(context),
                 ),
               ],
             ),

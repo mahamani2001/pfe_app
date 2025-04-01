@@ -1,11 +1,12 @@
-import 'dart:convert';
+/*  import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:pointycastle/api.dart' as crypto;
+import 'package:pointycastle/api.dart' as pointy;
 import 'package:pointycastle/asymmetric/api.dart';
 import 'package:pointycastle/key_generators/api.dart';
 import 'package:pointycastle/key_generators/rsa_key_generator.dart';
 import 'package:pointycastle/random/fortuna_random.dart';
+import 'dart:math';
 import 'package:asn1lib/asn1lib.dart';
 
 class RSAService {
@@ -14,8 +15,12 @@ class RSAService {
   Future<Map<String, String>> generateRSAKeyPair() async {
     final keyGen = RSAKeyGenerator()
       ..init(
-        crypto.ParametersWithRandom(
-          RSAKeyGeneratorParameters(BigInt.parse('65537'), 2048, 64),
+        pointy.ParametersWithRandom(
+          RSAKeyGeneratorParameters(
+            BigInt.from(65537),
+            2048,
+            64,
+          ),
           _getSecureRandom(),
         ),
       );
@@ -30,69 +35,77 @@ class RSAService {
     await _secureStorage.write(key: 'publicKey', value: publicKeyPem);
     await _secureStorage.write(key: 'privateKey', value: privateKeyPem);
 
-    print('🔑 Clé publique générée : $publicKeyPem');
-    print('🔑 Clé privée générée : $privateKeyPem');
-
     return {'publicKey': publicKeyPem, 'privateKey': privateKeyPem};
   }
 
-  crypto.SecureRandom _getSecureRandom() {
+  pointy.SecureRandom _getSecureRandom() {
     final secureRandom = FortunaRandom();
-    final seed = Uint8List.fromList(List<int>.generate(32, (i) => i + 1));
-    secureRandom.seed(crypto.KeyParameter(seed));
+    final seed = Uint8List(32);
+    final random = Random.secure();
+    for (int i = 0; i < 32; i++) {
+      seed[i] = random.nextInt(256);
+    }
+    secureRandom.seed(pointy.KeyParameter(seed));
     return secureRandom;
   }
 
   String _rsaPublicKeyToPem(RSAPublicKey publicKey) {
-    final sequence = ASN1Sequence();
-    sequence.add(ASN1Integer(publicKey.modulus!));
-    sequence.add(ASN1Integer(publicKey.exponent!));
-    final der = sequence.encodedBytes;
+    final algorithmSeq = ASN1Sequence();
+    algorithmSeq
+        .add(ASN1ObjectIdentifier.fromIdentifierString('1.2.840.113549.1.1.1'));
+    algorithmSeq.add(ASN1Null());
+
+    final keySeq = ASN1Sequence();
+    keySeq.add(ASN1Integer(publicKey.modulus!));
+    keySeq.add(ASN1Integer(publicKey.exponent!));
+    final keyBitString = ASN1BitString(keySeq.encodedBytes);
+
+    final topSeq = ASN1Sequence();
+    topSeq.add(algorithmSeq);
+    topSeq.add(keyBitString);
+
+    final der = topSeq.encodedBytes;
     final base64 = base64Encode(der);
-    return '''
+    final pem = '''
 -----BEGIN PUBLIC KEY-----
-${_formatBase64(base64)}
+${base64.splitMapJoin(RegExp(r'.{64}'), onMatch: (m) => '${m.group(0)}\n', onNonMatch: (n) => n)}
 -----END PUBLIC KEY-----
 ''';
+    return pem.trim();
   }
 
   String _rsaPrivateKeyToPem(RSAPrivateKey privateKey) {
-    final p = privateKey.p!;
-    final q = privateKey.q!;
-    final d = privateKey.privateExponent!;
-    final e = privateKey.publicExponent!;
+    final version = ASN1Integer(BigInt.zero);
+    final modulus = ASN1Integer(privateKey.modulus!);
+    final publicExponent = ASN1Integer(privateKey.exponent!);
+    final privateExponent = ASN1Integer(privateKey.privateExponent!);
+    final p = ASN1Integer(privateKey.p!);
+    final q = ASN1Integer(privateKey.q!);
+    final dp =
+        ASN1Integer(privateKey.privateExponent! % (privateKey.p! - BigInt.one));
+    final dq =
+        ASN1Integer(privateKey.privateExponent! % (privateKey.q! - BigInt.one));
+    final inverseQ = ASN1Integer(privateKey.q!.modInverse(privateKey.p!));
 
-    final dP = d % (p - BigInt.one);
-    final dQ = d % (q - BigInt.one);
-    final qInv = q.modInverse(p);
+    final seq = ASN1Sequence();
+    seq.add(version);
+    seq.add(modulus);
+    seq.add(publicExponent);
+    seq.add(privateExponent);
+    seq.add(p);
+    seq.add(q);
+    seq.add(dp);
+    seq.add(dq);
+    seq.add(inverseQ);
 
-    final privateKeySeq = ASN1Sequence();
-    privateKeySeq.add(ASN1Integer(BigInt.zero)); // Version (0)
-    privateKeySeq.add(ASN1Integer(privateKey.modulus!)); // n
-    privateKeySeq.add(ASN1Integer(e)); // e
-    privateKeySeq.add(ASN1Integer(d)); // d
-    privateKeySeq.add(ASN1Integer(p)); // p
-    privateKeySeq.add(ASN1Integer(q)); // q
-    privateKeySeq.add(ASN1Integer(dP)); // d mod (p-1)
-    privateKeySeq.add(ASN1Integer(dQ)); // d mod (q-1)
-    privateKeySeq.add(ASN1Integer(qInv)); // q^-1 mod p
-
-    final der = privateKeySeq.encodedBytes;
+    final der = seq.encodedBytes;
     final base64 = base64Encode(der);
-    return '''
+    final pem = '''
 -----BEGIN RSA PRIVATE KEY-----
-${_formatBase64(base64)}
+${base64.splitMapJoin(RegExp(r'.{64}'), onMatch: (m) => '${m.group(0)}\n', onNonMatch: (n) => n)}
 -----END RSA PRIVATE KEY-----
 ''';
-  }
-
-  String _formatBase64(String base64String) {
-    final buffer = StringBuffer();
-    for (var i = 0; i < base64String.length; i += 64) {
-      final end = (i + 64 < base64String.length) ? i + 64 : base64String.length;
-      buffer.writeln(base64String.substring(i, end));
-    }
-    return buffer.toString().trim();
+    return pem.trim();
   }
 
   Future<String?> getPrivateKey() async {
@@ -103,9 +116,17 @@ ${_formatBase64(base64)}
     return await _secureStorage.read(key: 'publicKey');
   }
 
-  Future<void> deleteKeys() async {
-    await _secureStorage.delete(key: 'publicKey');
-    await _secureStorage.delete(key: 'privateKey');
-    print('🔐 Clés supprimées avec succès.');
+  Future<void> generateAndSaveKeysIfNeeded() async {
+    final privateKey = await _secureStorage.read(key: 'privateKey');
+    final publicKey = await _secureStorage.read(key: 'publicKey');
+
+    if (privateKey == null || publicKey == null) {
+      print('🔐 Clés RSA manquantes. Génération en cours...');
+      await generateRSAKeyPair();
+    } else {
+      print('✅ Clés RSA déjà présentes.');
+    }
   }
 }
+ 
+ */

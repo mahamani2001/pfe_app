@@ -1,60 +1,69 @@
 import 'package:flutter/material.dart';
-import '../services/chat_service.dart';
 import '../models/message.dart';
+import '../services/chat_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService = ChatService();
   List<Message> _messages = [];
-  bool _isLoading = false;
+  bool _isConnected = false;
+  String? _userId; // Stocker l'ID de l'utilisateur connecté
 
+  // Getter des messages
   List<Message> get messages => _messages;
-  bool get isLoading => _isLoading;
 
-  // ✅ Charger les messages
-  Future<void> loadMessages(int receiverId) async {
-    _isLoading = true;
+  // Initialiser le chat avec l'ID utilisateur
+  void initChat(String userId) {
+    if (!_isConnected) {
+      _userId = userId;
+      _chatService.initChat(userId);
+      _listenForMessages();
+      _isConnected = true;
+    }
+  }
+
+  // Envoyer un message
+  void sendMessage(int receiverId, String content) {
+    if (_userId == null) {
+      throw Exception('ID utilisateur non défini');
+    }
+
+    _chatService.sendMessage(receiverId.toString(), content);
+
+    final message = Message(
+      id: _messages.length + 1,
+      senderId: int.parse(_userId!),
+      receiverId: receiverId,
+      content: content,
+      timestamp: DateTime.now().toIso8601String(),
+    );
+    _messages.add(message);
     notifyListeners();
-    try {
-      _messages = await _chatService.getMessages(receiverId);
-      print('✅ Messages chargés : ${_messages.length}');
-    } catch (e) {
-      print('⚠️ Erreur chargement messages: $e');
-      _messages = [];
-    } finally {
-      _isLoading = false;
+  }
+
+  // Écouter les messages entrants
+  void _listenForMessages() {
+    _chatService.listenForMessages((String content) {
+      final message = Message(
+        id: _messages.length + 1,
+        senderId: 0, // À mettre à jour si besoin
+        receiverId: 0, // À mettre à jour si besoin
+        content: content,
+        timestamp: DateTime.now().toIso8601String(),
+      );
+      _messages.add(message);
       notifyListeners();
-    }
-  }
-
-  // ✅ Envoyer un message
-  Future<void> sendMessage(int receiverId, String content) async {
-    try {
-      await _chatService.sendMessage(receiverId, content);
-      loadMessages(receiverId); // Recharge les messages après l'envoi
-    } catch (e) {
-      print('⚠️ Erreur envoi message: $e');
-    }
-  }
-
-  // ✅ Écouter les nouveaux messages via Socket.IO
-  void listenToMessages(int userId) {
-    _chatService.joinUserRoom(userId);
-    _chatService.listenToMessages((message) {
-      if (!_messages.any((msg) => msg.id == message.id)) {
-        _messages.add(message);
-        notifyListeners();
-      }
     });
   }
 
-  // ✅ Vider les messages
-  void clearMessages() {
-    _messages = [];
-    notifyListeners();
+  // Déconnexion
+  void disconnect() {
+    _chatService.disconnect();
+    _isConnected = false;
   }
 
-  // ✅ Fermer la connexion Socket.IO
-  void disposeService() {
-    _chatService.dispose();
+  // Effacer les messages après la déconnexion
+  void clearMessages() {
+    _messages.clear();
+    notifyListeners();
   }
 }

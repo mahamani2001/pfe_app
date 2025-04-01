@@ -1,69 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import '../services/auth_service.dart';
 
-class VerifyOtpScreen extends StatefulWidget {
-  const VerifyOtpScreen({super.key});
+class VerifyOTPScreen extends StatefulWidget {
+  final String tempToken;
+  const VerifyOTPScreen({Key? key, required this.tempToken}) : super(key: key);
 
   @override
-  _VerifyOtpScreenState createState() => _VerifyOtpScreenState();
+  _VerifyOTPScreenState createState() => _VerifyOTPScreenState();
 }
 
-class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
-  final _otpController = TextEditingController();
-  String? _errorMessage;
-  bool _isLoading = false;
+class _VerifyOTPScreenState extends State<VerifyOTPScreen> {
+  final AuthService _authService = AuthService();
+  final TextEditingController _otpController = TextEditingController();
+  bool _isVerifying = false;
 
-  @override
-  void dispose() {
-    _otpController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _verifyOtp() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  void _verifyOTP() async {
+    setState(() => _isVerifying = true);
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.verifyOtp(_otpController.text);
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+      final result =
+          await _authService.verifyOTP(widget.tempToken, _otpController.text);
+      if (result['token'] != null) {
+        Navigator.pushNamed(context, '/home');
+      } else {
+        _showError('OTP incorrect ou expiré');
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      });
+      _showError('Erreur lors de la vérification OTP');
     } finally {
-      setState(() => _isLoading = false);
+      setState(() => _isVerifying = false);
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Vérifier OTP')),
+      appBar: AppBar(title: const Text('Vérification OTP')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('Entrez le code OTP envoyé à votre email'),
             TextField(
               controller: _otpController,
-              decoration: const InputDecoration(labelText: 'OTP'),
               keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Code OTP'),
             ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-              ),
             const SizedBox(height: 20),
-            _isLoading
+            _isVerifying
                 ? const CircularProgressIndicator()
                 : ElevatedButton(
-                    onPressed: _verifyOtp,
+                    onPressed: _verifyOTP,
                     child: const Text('Vérifier'),
                   ),
           ],
